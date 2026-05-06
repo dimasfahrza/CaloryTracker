@@ -8,11 +8,11 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: (name, value, options: CookieOptions) => {
+        get: (name: string) => cookieStore.get(name)?.value,
+        set: (name: string, value: string, options: CookieOptions) => {
           try { cookieStore.set({ name, value, ...options }); } catch { /* RSC: ignore */ }
         },
-        remove: (name, options: CookieOptions) => {
+        remove: (name: string, options: CookieOptions) => {
           try { cookieStore.set({ name, value: "", ...options }); } catch { /* RSC: ignore */ }
         },
       },
