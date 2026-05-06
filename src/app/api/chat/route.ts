@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Content, type FunctionDeclaration, type Part } from "@google/genai";
+import { GoogleGenAI, Type, type Content, type FunctionDeclaration, type Part } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/utils";
 import {
@@ -35,9 +35,9 @@ const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     name: "search_foods",
     description: "Search the food catalog by name. Use BEFORE log_food for any common food the user names. Returns up to 10 matches with macros per serving. Empty array means no match — fall back to log_food with estimated macros.",
     parameters: {
-      type: "object",
+      type: Type.OBJECT,
       properties: {
-        query: { type: "string", description: "Food name to search, e.g. 'banana' or 'chicken'" },
+        query: { type: Type.STRING, description: "Food name to search, e.g. 'banana' or 'chicken'" },
       },
       required: ["query"],
     },
@@ -46,17 +46,17 @@ const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     name: "log_food",
     description: "Insert a food entry into today's (or a specified date's) log. All macro fields are PER ENTRY (already multiplied by servings).",
     parameters: {
-      type: "object",
+      type: Type.OBJECT,
       properties: {
-        food_id: { type: "string", nullable: true, description: "UUID from search_foods if you matched one; null otherwise." },
-        food_name: { type: "string", description: "Display name, e.g. 'Banana' or 'Mom's chicken curry'." },
-        meal: { type: "string", enum: ["breakfast", "lunch", "dinner", "snack"] },
-        servings: { type: "number", description: "Number of servings, between 0.1 and 50." },
-        calories: { type: "number", description: "Total kcal for this entry (servings already applied)." },
-        protein_g: { type: "number" },
-        carbs_g: { type: "number" },
-        fat_g: { type: "number" },
-        logged_on: { type: "string", description: "YYYY-MM-DD. Use today's date unless the user named a different day." },
+        food_id: { type: Type.STRING, nullable: true, description: "UUID from search_foods if you matched one; null otherwise." },
+        food_name: { type: Type.STRING, description: "Display name, e.g. 'Banana' or 'Mom's chicken curry'." },
+        meal: { type: Type.STRING, enum: ["breakfast", "lunch", "dinner", "snack"] },
+        servings: { type: Type.NUMBER, description: "Number of servings, between 0.1 and 50." },
+        calories: { type: Type.NUMBER, description: "Total kcal for this entry (servings already applied)." },
+        protein_g: { type: Type.NUMBER },
+        carbs_g: { type: Type.NUMBER },
+        fat_g: { type: Type.NUMBER },
+        logged_on: { type: Type.STRING, description: "YYYY-MM-DD. Use today's date unless the user named a different day." },
       },
       required: ["food_name", "meal", "servings", "calories", "protein_g", "carbs_g", "fat_g", "logged_on"],
     },
@@ -65,14 +65,14 @@ const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     name: "log_workout",
     description: "Insert a workout into today's (or a specified date's) log.",
     parameters: {
-      type: "object",
+      type: Type.OBJECT,
       properties: {
-        name: { type: "string" },
-        type: { type: "string", enum: ["strength", "cardio", "hiit", "yoga", "sports", "other"] },
-        duration_min: { type: "integer", description: "Minutes, 0-600." },
-        calories_burned: { type: "integer", description: "Estimated kcal burned, 0-5000." },
-        notes: { type: "string", nullable: true },
-        performed_on: { type: "string", description: "YYYY-MM-DD" },
+        name: { type: Type.STRING },
+        type: { type: Type.STRING, enum: ["strength", "cardio", "hiit", "yoga", "sports", "other"] },
+        duration_min: { type: Type.INTEGER, description: "Minutes, 0-600." },
+        calories_burned: { type: Type.INTEGER, description: "Estimated kcal burned, 0-5000." },
+        notes: { type: Type.STRING, nullable: true },
+        performed_on: { type: Type.STRING, description: "YYYY-MM-DD" },
       },
       required: ["name", "type", "duration_min", "calories_burned", "performed_on"],
     },
@@ -81,11 +81,11 @@ const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
     name: "log_weight",
     description: "Record today's (or a specified date's) weight in kilograms. Upserts — replaces an existing entry for that date.",
     parameters: {
-      type: "object",
+      type: Type.OBJECT,
       properties: {
-        weight_kg: { type: "number", description: "Weight in kilograms." },
-        note: { type: "string", nullable: true },
-        logged_on: { type: "string", description: "YYYY-MM-DD" },
+        weight_kg: { type: Type.NUMBER, description: "Weight in kilograms." },
+        note: { type: Type.STRING, nullable: true },
+        logged_on: { type: Type.STRING, description: "YYYY-MM-DD" },
       },
       required: ["weight_kg", "logged_on"],
     },
@@ -93,7 +93,7 @@ const FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "get_today_summary",
     description: "Returns the user's daily targets and today's running totals (calories, macros, workouts). Use this for questions like 'how many calories left?' or 'what's my protein at?'.",
-    parameters: { type: "object", properties: {} },
+    parameters: { type: Type.OBJECT, properties: {} },
   },
 ];
 
