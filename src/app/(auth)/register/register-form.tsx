@@ -67,7 +67,7 @@ export function RegisterForm() {
         <div className="relative flex justify-center text-xs"><span className="px-2 bg-surface text-muted">or</span></div>
       </div>
 
-      <form action={signInWithGoogle}>
+      <form action={async () => { await signInWithGoogle(); }}>
         <Button type="submit" variant="secondary" block>Sign up with Google</Button>
       </form>
     </div>
