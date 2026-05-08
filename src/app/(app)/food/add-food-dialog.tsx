@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Search, Plus } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Search, Plus, Camera, Upload, X } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,17 +11,18 @@ import { addFoodLog, searchFoods, createCustomFood } from "@/actions/food";
 import { toast } from "@/components/ui/toast";
 import type { Food, Meal } from "@/types/database";
 import { formatNumber } from "@/lib/utils";
+import type { FoodAnalysis } from "@/app/api/analyze-food/route";
 
 const MEALS: Meal[] = ["breakfast", "lunch", "dinner", "snack"];
 
 export function AddFoodDialog({
   open, onClose, defaultDate, defaultMeal = "breakfast",
 }: { open: boolean; onClose: () => void; defaultDate: string; defaultMeal?: Meal }) {
-  const [tab, setTab] = useState<"search" | "custom">("search");
+  const [tab, setTab] = useState<"search" | "custom" | "photo">("search");
   return (
-    <Dialog open={open} onClose={onClose} title="Add food" description="Search the catalog or enter custom values.">
+    <Dialog open={open} onClose={onClose} title="Add food" description="Search, enter custom values, or scan a photo.">
       <div className="flex gap-1 p-1 mb-4 bg-surface2 rounded-xl text-sm">
-        {(["search", "custom"] as const).map((t) => (
+        {(["search", "custom", "photo"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -29,16 +30,18 @@ export function AddFoodDialog({
               tab === t ? "bg-surface text-text shadow-card" : "text-muted hover:text-text"
             }`}
           >
-            {t}
+            {t === "photo" ? "📷 Photo" : t}
           </button>
         ))}
       </div>
-      {tab === "search"
-        ? <SearchTab onClose={onClose} defaultDate={defaultDate} defaultMeal={defaultMeal} />
-        : <CustomTab onClose={onClose} defaultDate={defaultDate} defaultMeal={defaultMeal} />}
+      {tab === "search" && <SearchTab onClose={onClose} defaultDate={defaultDate} defaultMeal={defaultMeal} />}
+      {tab === "custom" && <CustomTab onClose={onClose} defaultDate={defaultDate} defaultMeal={defaultMeal} />}
+      {tab === "photo" && <PhotoTab onClose={onClose} defaultDate={defaultDate} defaultMeal={defaultMeal} />}
     </Dialog>
   );
 }
+
+/* ─── Search Tab ─────────────────────────────────────────────────────────── */
 
 function SearchTab({
   onClose, defaultDate, defaultMeal,
@@ -159,6 +162,8 @@ function SearchTab({
   );
 }
 
+/* ─── Custom Tab ─────────────────────────────────────────────────────────── */
+
 function CustomTab({
   onClose, defaultDate, defaultMeal,
 }: { onClose: () => void; defaultDate: string; defaultMeal: Meal }) {
@@ -246,6 +251,208 @@ function CustomTab({
     </form>
   );
 }
+
+/* ─── Photo Tab ──────────────────────────────────────────────────────────── */
+
+function PhotoTab({
+  onClose, defaultDate, defaultMeal,
+}: { onClose: () => void; defaultDate: string; defaultMeal: Meal }) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState<FoodAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [name, setName] = useState("");
+  const [servings, setServings] = useState(1);
+  const [meal, setMeal] = useState<Meal>(defaultMeal);
+  const [pending, start] = useTransition();
+
+  const pickFile = (file: File) => {
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
+    setResult(null);
+    setError(null);
+    setName("");
+  };
+
+  const reset = () => {
+    setImageFile(null);
+    setPreview(null);
+    setResult(null);
+    setError(null);
+    setName("");
+    setServings(1);
+  };
+
+  // Auto-analyze whenever a new image is picked
+  useEffect(() => {
+    if (!imageFile) return;
+    let cancelled = false;
+    setAnalyzing(true);
+    (async () => {
+      try {
+        const fd = new FormData();
+        fd.append("image", imageFile);
+        const res = await fetch("/api/analyze-food", { method: "POST", body: fd });
+        const data = await res.json() as FoodAnalysis & { error?: string };
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error ?? "Analysis failed");
+        setResult(data);
+        setName(data.food_name);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Analysis failed");
+      } finally {
+        if (!cancelled) setAnalyzing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [imageFile]);
+
+  /* ── No image selected yet ── */
+  if (!imageFile) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted text-center leading-relaxed">
+          Take a photo or upload an image of your food.<br />
+          AI will detect the food and estimate calories automatically.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => cameraRef.current?.click()}
+            className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-surface2 transition-colors"
+          >
+            <Camera className="w-8 h-8 text-primary" />
+            <span className="text-sm font-medium">Take Photo</span>
+          </button>
+          <button
+            onClick={() => uploadRef.current?.click()}
+            className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-dashed border-border hover:border-primary hover:bg-surface2 transition-colors"
+          >
+            <Upload className="w-8 h-8 text-muted" />
+            <span className="text-sm font-medium">Upload Image</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-muted text-center">Supports JPG, PNG, WEBP · max 10 MB</p>
+
+        <input
+          ref={cameraRef} type="file" accept="image/*" capture="environment" className="sr-only"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ""; }}
+        />
+        <input
+          ref={uploadRef} type="file" accept="image/*" className="sr-only"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); e.target.value = ""; }}
+        />
+      </div>
+    );
+  }
+
+  /* ── Image selected: preview + analysis ── */
+  return (
+    <div className="space-y-4">
+      {/* Preview with remove button */}
+      <div className="relative rounded-xl overflow-hidden bg-surface2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={preview!} alt="Food preview" className="w-full h-44 object-cover" />
+        <button
+          onClick={reset}
+          aria-label="Remove image"
+          className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        {analyzing && (
+          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+            <div
+              className="w-8 h-8 border-primary border-t-transparent rounded-full animate-spin"
+              style={{ borderWidth: 3, borderStyle: "solid" }}
+            />
+            <span className="text-white text-sm font-medium">Analyzing food…</span>
+          </div>
+        )}
+      </div>
+
+      {/* Error state */}
+      {error && !analyzing && (
+        <div className="text-danger text-sm p-3 bg-danger/10 rounded-xl border border-danger/20">
+          {error}
+          <button onClick={reset} className="block mt-2 text-xs underline">Try another image</button>
+        </div>
+      )}
+
+      {/* Results */}
+      {result && !analyzing && (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              result.confidence === "high"   ? "bg-primary/20 text-primary" :
+              result.confidence === "medium" ? "bg-accent/20 text-accent" :
+                                              "bg-border text-muted"
+            }`}>
+              {result.confidence} confidence
+            </span>
+            <span className="text-xs text-muted">{result.portion_description}</span>
+          </div>
+
+          <Input
+            label="Food name (edit if needed)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <Stat label="kcal" value={formatNumber(Math.round(result.calories * servings))} />
+            <Stat label="P"    value={formatNumber(+(result.protein_g * servings).toFixed(1))} />
+            <Stat label="C"    value={formatNumber(+(result.carbs_g   * servings).toFixed(1))} />
+            <Stat label="F"    value={formatNumber(+(result.fat_g     * servings).toFixed(1))} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Servings"
+              type="number" inputMode="decimal" step="0.25" min="0.25"
+              value={servings}
+              onChange={(e) => setServings(Math.max(0.25, Number(e.target.value) || 1))}
+            />
+            <Select label="Meal" value={meal} onChange={(e) => setMeal(e.target.value as Meal)}>
+              {MEALS.map((m) => <option key={m} value={m} className="capitalize">{m}</option>)}
+            </Select>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="secondary" onClick={reset}>Retake</Button>
+            <Button block loading={pending} onClick={() => start(async () => {
+              if (!name.trim()) return toast.err("Food name is required");
+              const factor = servings || 1;
+              const res = await addFoodLog({
+                food_id: null,
+                food_name: name.trim(),
+                meal,
+                servings: factor,
+                calories: Math.round(result.calories * factor),
+                protein_g: +(result.protein_g * factor).toFixed(1),
+                carbs_g:   +(result.carbs_g   * factor).toFixed(1),
+                fat_g:     +(result.fat_g     * factor).toFixed(1),
+                logged_on: defaultDate,
+              });
+              if (!res.ok) toast.err(res.error ?? "Couldn't save");
+              else { toast.ok("Logged!"); onClose(); }
+            })}>
+              <Plus className="w-4 h-4" /> Add to log
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Shared ─────────────────────────────────────────────────────────────── */
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
